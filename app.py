@@ -8,6 +8,8 @@ from langchain.indexes import VectorstoreIndexCreator
 from langchain.chains import RetrievalQA
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
 
 #Bring in streamlit for UI dev
 import streamlit as st
@@ -17,9 +19,9 @@ from wxai_langchain.llm import LangChainInterface
 
 #Setup crendentials dictionary
 creds=Credentials(
-    api_key='3JQOZFLpP_zDSAvcpNZNVlEQ4LnQfuIJ3j1nrsihfx8i',
-    api_endpoint='https://jp-tok.ml.cloud.ibm.com',
-    project_id='2841f6ba-e49e-43b9-a7ad-f749295e28ab'
+    api_key='88T9kqtYokAKKxu4f9aCkeFuL1IKcYPDvFF5VrtNAiXL',
+    api_endpoint='https://eu-gb.ml.cloud.ibm.com',
+    project_id='f450edd5-9cc1-4acd-9060-080d774d39de'
 )
 
 llm =LangChainInterface(
@@ -69,7 +71,7 @@ def load_pdf_vectorestore():
         documents.extend(loader.load())
         
     #Spilt text into chunks
-    splitter=RecursiveCharacterTextSplitter(chunk_size=100,chunk_overlap=0)
+    splitter=RecursiveCharacterTextSplitter(chunk_size=1000,chunk_overlap=100)
     docs=splitter.split_documents(documents)
     
     #Create FAISS vectorstore
@@ -86,13 +88,36 @@ def load_pdf_vectorestore():
 
 #load Vectorstore
 vectorstore=load_pdf_vectorestore()
-    
+custom_prompt = """
+You are a knowledgeable and friendly travel assistant for Sikkim tourism. Your job is to provide accurate, clear, and informative answers to any questions related to travel in Sikkim.
+
+Please base your responses on the following information:
+1. **Taxi Fares**: Include specific taxi fares from Gangtok to various destinations.
+2. **Places to Visit**: Provide details about key tourist attractions in Sikkim.
+3. **General Travel Information**: Provide helpful tips and advice related to Sikkim tourism, including best times to visit, local culture, and special events.
+4. **General conversation**:Provide simple friendly conversations.
+
+Context:
+{context}
+
+User's Question:
+{question}
+
+Your Answer:
+"""   
+# Create the prompt template
+template = PromptTemplate(input_variables=["context", "question"], template=custom_prompt)
+
+# Initialize the chain using the custom prompt
+llm_chain = LLMChain(prompt=template, llm=llm)
+
 #Create a Q&A chain
 chain =RetrievalQA.from_chain_type(
-    llm=llm,
+    llm=llm_chain,
     chain_type='stuff',
     retriever=vectorstore.as_retriever(),
-    input_key='question'
+    input_key='question',
+    
 )
     
 #Setup the app title
@@ -118,9 +143,15 @@ if prompt:
     #Store the user prompt in state
     st.session_state.messages.append({'role':'user','content':prompt})
 
-    #Send the prompt to the PDF and Q&A chain
-    response=chain.run(prompt)
+    # Retrieve context from vectorstore
+    retrieved_docs = vectorstore.similarity_search(prompt, k=3)  # You can set k=3 or higher
 
+    # Combine content into one context string
+    context = "\n\n".join(doc.page_content for doc in retrieved_docs)
+
+    # Now run the chain with both question and context
+    response = llm_chain.run({"question": prompt, "context": context})
+    
     #Show the LLM Response
     st.chat_message('assistant').markdown(response)
 
