@@ -19,9 +19,9 @@ from wxai_langchain.llm import LangChainInterface
 
 #Setup crendentials dictionary
 creds=Credentials(
-    api_key='88T9kqtYokAKKxu4f9aCkeFuL1IKcYPDvFF5VrtNAiXL',
-    api_endpoint='https://eu-gb.ml.cloud.ibm.com',
-    project_id='f450edd5-9cc1-4acd-9060-080d774d39de'
+    api_key='',
+    api_endpoint='',
+    project_id=''
 )
 
 llm =LangChainInterface(
